@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Shipping Log</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#0f1117; --card:#181c28; --line:#252a3a; --ink:#e8eaf0; --dim:#8a90a6; --faint:#5a5f75;
+    --blue:#2563eb; --red:#dc2626; --green:#16a34a; --amber:#f0b868; --amberbg:#1a1410; --amberline:#3a2a18;
+  }
+  body{background:var(--bg);color:var(--ink);font-family:'SF Pro Text','Segoe UI',system-ui,sans-serif;
+       min-height:100vh;padding:18px 14px calc(34px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+  h1{text-align:center;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+
+  .strip{background:var(--amberbg);border:1px solid var(--amberline);border-radius:11px;padding:10px 12px;
+         margin-bottom:14px;font-size:12px;line-height:1.6;color:#d8a860}
+  .strip b{color:var(--amber);display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+  .strip.clear{background:#0e1a12;border-color:#1c3324;color:#6fcf8f}
+  .strip.clear b{color:#6fcf8f}
+
+  .tabs{display:flex;gap:4px;margin-bottom:8px;background:var(--card);border-radius:11px;padding:4px;overflow-x:auto}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:1 0 auto;min-width:52px;padding:9px 8px;border:none;border-radius:8px;font-size:12px;font-weight:600;
+       cursor:pointer;transition:.15s;background:transparent;color:var(--faint);white-space:nowrap}
+  .tab.active{background:#252a3a;color:var(--ink)}
+  .tab.sum.active{background:#2d2440;color:#c4a8f0}
+
+  .langs{display:flex;gap:6px;margin-bottom:12px;background:var(--card);border-radius:11px;padding:4px}
+  .lang{flex:1;padding:9px;border:none;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;
+        transition:.15s;background:transparent;color:var(--faint)}
+  .lang.active{background:#252a3a;color:var(--ink)}
+  .pill{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+        padding:2px 6px;border-radius:4px;margin-left:5px;vertical-align:middle}
+  .pill.int{background:#1e3a5f;color:#60a5fa}
+  .pill.cli{background:#3f1515;color:#f87171}
+
+  .report{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;
+          font-size:13px;line-height:1.75;white-space:pre-wrap;color:#c8cad8;
+          font-family:'SF Mono','Fira Code',monospace;margin-bottom:12px;min-height:160px;overflow-wrap:anywhere}
+
+  .btn{width:100%;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;
+       transition:.15s;color:#fff;font-family:inherit}
+  .btn:active{transform:scale(.98);opacity:.85}
+  .btn.en{background:var(--blue)} .btn.cn{background:var(--red)} .btn.ok{background:var(--green)!important}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--dim);font-size:13px;font-weight:600;padding:11px}
+
+  .row{display:flex;gap:8px;margin-top:10px}
+  .row>*{flex:1}
+
+  details{margin-top:20px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  summary{padding:13px 15px;font-size:13px;font-weight:600;color:var(--dim);cursor:pointer;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:'＋';float:right;color:var(--faint)}
+  details[open] summary::after{content:'－'}
+  .body{padding:0 15px 15px}
+
+  .bitem{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+  .bitem .d{flex:1;min-width:0}
+  .bitem .t{color:var(--ink)}
+  .bitem .s{color:var(--faint);font-size:11.5px;margin-top:2px}
+  .chip{border:none;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+  .chip.t{background:#2a2113;color:var(--amber)}
+  .chip.w{background:#241f2e;color:#b9a2e8}
+  .chip.d{background:#122a1b;color:#6fcf8f}
+  .chip.x{background:#2a1313;color:#f87171}
+
+  label{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:12px 0 5px}
+  input,select,textarea{width:100%;background:#11141d;border:1px solid var(--line);border-radius:9px;color:var(--ink);
+    padding:11px 12px;font-size:15px;font-family:inherit}
+  textarea{min-height:110px;font-family:'SF Mono',monospace;font-size:13px;line-height:1.6}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:#3a4258}
+
+  .lrow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .lrow input[data-k=code]{flex:1.4} .lrow input[data-k=units],.lrow input[data-k=boxes]{flex:1;min-width:0}
+  .lrow button{background:#2a1313;color:#f87171;border:none;border-radius:8px;width:34px;height:40px;
+               font-size:16px;cursor:pointer;flex:0 0 34px}
+  .warn{color:var(--amber);font-size:12px;margin-top:8px;line-height:1.5}
+  .tot{color:var(--dim);font-size:12.5px;margin-top:10px}
+  .hint{color:var(--faint);font-size:11.5px;margin-top:6px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<h1 data-t="title">Shipping Log</h1>
+<div class="strip" id="strip"></div>
+<div class="tabs" id="tabs"></div>
+<div class="langs">
+  <button class="lang active" data-l="en">🇺🇸 English <span class="pill int" data-t="internal">Internal</span></button>
+  <button class="lang" data-l="cn">🇨🇳 中文 <span class="pill cli" data-t="client">Client</span></button>
+</div>
+<div class="report" id="report"></div>
+<button class="btn en" id="copy"></button>
+
+<details id="addBox">
+  <summary data-t="addBatch">Add a batch</summary>
+  <div class="body">
+    <div class="strip" id="editBanner" style="display:none;margin-top:12px"></div>
+    <label data-t="pasteLbl">Paste from WeChat (optional)</label>
+    <textarea id="paste" data-tp="pastePh" placeholder="WEN 161 8box&#10;GAO 225 11box&#10;SL 144 (7箱)"></textarea>
+    <button class="btn ghost" id="parseBtn" data-t="readPaste" style="margin-top:8px">Read the paste</button>
+    <div class="hint" data-t="pasteHint">One line per code. First number is units, second is boxes. 中文数字 and 箱 both work.</div>
+
+    <label data-t="carrierLbl">Carrier &amp; PRO number</label>
+    <div class="lrow">
+      <select id="bcarrier" style="flex:1.1">
+        <option value="" data-t="carrierPh">Carrier…</option>
+        <option>FreightCenter</option>
+        <option>Estes</option>
+        <option>ABF</option>
+        <option>Forward Air</option>
+        <option>XPO</option>
+        <option>Old Dominion</option>
+        <option>Saia</option>
+        <option>R+L</option>
+        <option data-t="other">Other</option>
+      </select>
+      <input id="bpro" style="flex:1.3" data-tp="proPh" placeholder="PRO #" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="hint" data-t="scanHint">On iPhone: tap the PRO box, then <b>Scan Text</b> above the keyboard and sweep the whole BOL header — the carrier and PRO sort themselves out.</div>
+    <div class="hint" id="detected"></div>
+
+    <label data-t="dateLbl">Date picked up</label>
+    <input type="date" id="bdate">
+
+    <label data-t="statusLbl">Status</label>
+    <select id="bstatus">
+      <option value="waiting" data-t="optWaiting">⏳ Waiting for pickup</option>
+      <option value="transit" data-t="optTransit">🚚 En Route</option>
+      <option value="done" data-t="optDone">✅ Completed</option>
+    </select>
+
+    <label data-t="linesLbl">Lines</label>
+    <div id="lines"></div>
+    <button class="btn ghost" id="addLine" data-t="addLineBtn" style="margin-top:4px">+ Another line</button>
+    <div class="tot" id="liveTot"></div>
+    <div class="warn" id="warn"></div>
+
+    <button class="btn en" id="saveBatch" data-t="saveBtn" style="margin-top:14px">Save batch</button>
+    <button class="btn ghost" id="cancelEdit" data-t="cancelEdit" style="margin-top:8px;display:none">Cancel edit</button>
+  </div>
+</details>
+
+<details>
+  <summary data-t="allBatches">All batches</summary>
+  <div class="body" id="list"></div>
+</details>
+
+<details>
+  <summary data-t="backupCodes">Backup &amp; codes</summary>
+  <div class="body">
+    <div class="tot" id="codes"></div>
+    <div class="row">
+      <button class="btn ghost" id="exp" data-t="dlBackup">Download backup</button>
+      <button class="btn ghost" id="impBtn" data-t="rsBackup">Restore backup</button>
+    </div>
+    <input type="file" id="imp" accept="application/json" style="display:none">
+    <div class="hint" data-t="backupHint">Everything is stored in this browser only. Download a backup before clearing your browser data, or to move the log to another phone.</div>
+  </div>
+</details>
+
+<script>
+const SEED = [];
+
+/* ---------- storage ---------- */
+const KEY = "shipping-log-v1";
+let DATA = load();
+
+function load(){
+  try{ const r = localStorage.getItem(KEY); if(r) return JSON.parse(r); }catch(e){}
+  return JSON.parse(JSON.stringify(SEED));
+}
+function save(){
+  DATA.sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  try{ localStorage.setItem(KEY, JSON.stringify(DATA)); }catch(e){}
+  render();
+}
+
+/* ---------- formatting ---------- */
+const EN_MONTH = ["January","February","March","April","May","June","July",
+                  "August","September","October","November","December"];
+const CN_MONTH = ["一月","二月","三月","四月","五月","六月","七月",
+                  "八月","九月","十月","十一月","十二月"];
+const CN_D = ["","一","二","三","四","五","六","七","八","九"];
+
+function cnNum(n){
+  if(n < 10) return CN_D[n];
+  if(n === 10) return "十";
+  if(n < 20) return "十" + CN_D[n-10];
+  const t = Math.floor(n/10), o = n%10;
+  return CN_D[t] + "十" + (o ? CN_D[o] : "");
+}
+const comma = n => n.toLocaleString("en-US");
+const ym = d => d.slice(0,7);
+const parts = d => d.split("-").map(Number);
+
+function sumB(b){ return b.subtotal; }
+
+function renderBatch(b, idx, lang){
+  const [y,m,d] = parts(b.date);
+  const mark = { en:{ done:"✅ Completed", transit:"🚚 En Route", waiting:"⏳ Waiting for pickup" },
+                 cn:{ done:"✅ 已完成",   transit:"🚚 运输中",   waiting:"⏳ 待取件" } };
+  const st = b.status === "done" ? "done" : b.status === "waiting" ? "waiting" : "transit";
+  let out = [];
+  if(lang === "en"){
+    out.push(`Batch ${idx} — ${EN_MONTH[m-1]} ${d}, ${y}  ${mark.en[st]}`);
+    b.lines.forEach(l => out.push("• " + l.en));
+    const n = b.subtotal.enNote ? " " + b.subtotal.enNote : "";
+    out.push(`• Subtotal: ${comma(b.subtotal.units)} units (${b.subtotal.boxes} boxes${n})`);
+  }else{
+    out.push(`第${cnNum(idx)}批 — ${y}年${m}月${d}日  ${mark.cn[st]}`);
+    b.lines.forEach(l => out.push("• " + l.cn));
+    const n = b.subtotal.cnNote ? " " + b.subtotal.cnNote : "";
+    out.push(`• 小计：${comma(b.subtotal.units)} 件（${b.subtotal.boxes} 箱${n}）`);
+  }
+  return out.join("\n");
+}
+
+const isEmptyCode = c => /^(EMPTY|空箱?|空盒)/i.test(String(c || "").trim());
+// what the empty-box code looks like in each language's form fields
+const codeLabel = c => isEmptyCode(c) ? (LANG === "cn" ? "空箱" : "EMPTY") : c;
+
+// turn a line's parts into the wording the report uses
+function lineText(parts, boxes, lang, host){
+  const bx = n => lang==="en" ? `${n} box${n===1?"":"es"}` : `${n} 箱`;
+  if(parts.length === 1 && isEmptyCode(parts[0].code)){
+    return lang==="en" ? `Empty box: 0 units (${bx(boxes||1)})`
+                       : `空箱：0 件（${bx(boxes||1)}）`;
+  }
+  const bits = parts.map(p=> lang==="en"
+    ? `${p.code}: ${comma(p.units)} units`
+    : `${p.code}：${comma(p.units)} 件`);
+  if(parts.length > 1){
+    return lang==="en" ? `${bits.join(" + ")} (mixed, ${bx(boxes)})`
+                       : `${bits.join(" + ")}（混装，${bx(boxes)}）`;
+  }
+  if(!boxes){
+    const where = host
+      ? (lang==="en" ? `packed in ${host} box` : `混装在 ${host} 箱内`)
+      : (lang==="en" ? "packed in another box" : "混装在其他箱内");
+    return lang==="en" ? `${bits[0]} (${where})` : `${bits[0]}（${where}）`;
+  }
+  return lang==="en" ? `${bits[0]} (${bx(boxes)})` : `${bits[0]}（${bx(boxes)}）`;
+}
+
+const RULE = "━━━━━━━━━━━━━";
+
+function monthReport(key, lang){
+  const list = DATA.filter(b => ym(b.date) === key);
+  if(!list.length) return summaryReport(lang);
+  const m = Number(key.slice(5,7));
+  const u = list.reduce((s,b)=>s+b.subtotal.units,0);
+  const bx = list.reduce((s,b)=>s+b.subtotal.boxes,0);
+  const head = lang === "en"
+    ? `📦 ${EN_MONTH[m-1]} Shipping Report — For You (Internal)`
+    : `📦 ${CN_MONTH[m-1]}发货报告`;
+  const tail = lang === "en"
+    ? `🗓️ ${EN_MONTH[m-1]} Total: ${comma(u)} units (${bx} boxes)`
+    : `🗓️ ${CN_MONTH[m-1]}总计：${comma(u)} 件（${bx} 箱）`;
+  const body = list.map((b,i)=> renderBatch(b, i+1, lang)).join(`\n\n${RULE}\n`);
+  return `${head}\n\n${RULE}\n${body}\n\n${RULE}\n${tail}`;
+}
+
+function monthKeys(){
+  return [...new Set(DATA.map(b=>ym(b.date)))].sort();
+}
+
+function summaryReport(lang){
+  const keys = monthKeys();
+  const rows = keys.map(k=>{
+    const list = DATA.filter(b=>ym(b.date)===k);
+    const m = Number(k.slice(5,7));
+    const u = list.reduce((s,b)=>s+b.subtotal.units,0);
+    const bx = list.reduce((s,b)=>s+b.subtotal.boxes,0);
+    return lang === "en"
+      ? `${EN_MONTH[m-1]}: ${comma(u)} units (${bx} boxes) — ${list.length} batch${list.length>1?"es":""}`
+      : `${CN_MONTH[m-1]}：${comma(u)} 件（${bx} 箱）— 共 ${list.length} 批`;
+  });
+  const U = DATA.reduce((s,b)=>s+b.subtotal.units,0);
+  const B = DATA.reduce((s,b)=>s+b.subtotal.boxes,0);
+  if(!keys.length) return lang==="en"
+    ? "No batches logged yet.\n\nOpen \u201cAdd a batch\u201d below, or restore a backup under \u201cBackup & codes\u201d."
+    : "还没有发货记录。\n\n请在下方「Add a batch」添加，或在「Backup & codes」里恢复备份。";
+  const first = keys[0], last = keys[keys.length-1];
+  const fm = Number(first.slice(5,7)), lm = Number(last.slice(5,7));
+  const yr = first.slice(0,4);
+
+  // one line per quarter that has data
+  const QL = {1:["Q1 (Jan–Mar)","第一季度（1–3月）"],2:["Q2 (Apr–Jun)","第二季度（4–6月）"],
+              3:["Q3 (Jul–Sep)","第三季度（7–9月）"],4:["Q4 (Oct–Dec)","第四季度（10–12月）"]};
+  const qs = {};
+  DATA.forEach(b=>{
+    const mo = Number(ym(b.date).slice(5,7));
+    const q = Math.ceil(mo/3);
+    qs[q] = qs[q] || {u:0,b:0,mo:new Set()};
+    qs[q].u += b.subtotal.units; qs[q].b += b.subtotal.boxes; qs[q].mo.add(mo);
+  });
+  // only show a quarter once all three of its months have shipped
+  const qrows = Object.keys(qs).sort().filter(q=>qs[q].mo.size===3).map(q=> lang==="en"
+    ? `${QL[q][0]}: ${comma(qs[q].u)} units (${qs[q].b} boxes)`
+    : `${QL[q][1]}：${comma(qs[q].u)} 件（${qs[q].b} 箱）`);
+
+  const EN_N = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve"];
+  const n = keys.length;
+  if(lang === "en"){
+    return `📦 Shipping Summary — ${EN_MONTH[fm-1]} to ${EN_MONTH[lm-1]} ${yr}\n\n${RULE}\n`
+         + rows.join("\n") + `\n\n${RULE}\n` + qrows.join("\n")
+         + `\n🗓️ ${EN_N[n]||n}-Month Total: ${comma(U)} units (${B} boxes)`;
+  }
+  return `📦 发货汇总 — ${yr}年${fm}月至${lm}月\n\n${RULE}\n`
+       + rows.join("\n") + `\n\n${RULE}\n` + qrows.join("\n")
+       + `\n🗓️ ${cnNum(n)}个月总计：${comma(U)} 件（${B} 箱）`;
+}
+
+const TRACK = {
+  "FreightCenter":"https://www.freightcenter.com/tracking",
+  "Estes":"https://www.estes-express.com/myestes/shipment-tracking/#/search?type=PRO&query=",
+  "ABF":"https://arcb.com/tools/tracking.html#/",
+  "Forward Air":"https://www.forwardair.com/tracking",
+  "XPO":"https://www.xpo.com/tracking/",
+  "Old Dominion":"https://www.odfl.com/us/en/tracking.html",
+  "Saia":"https://www.saia.com/track",
+  "R+L":"https://www.rlcarriers.com/freight/shipping/shipment-tracing"
+};
+
+// carrier names as they appear on a BOL
+const CARRIERS = [
+  ["Estes",        /\bestes\b/i],
+  ["ABF",          /\b(abf|arcbest)\b/i],
+  ["Forward Air",  /\bforward\s*air\b/i],
+  ["XPO",          /\bxpo\b/i],
+  ["Old Dominion", /\b(old\s*dominion|odfl)\b/i],
+  ["Saia",         /\bsaia\b/i],
+  ["R+L",          /\b(r\s*\+\s*l|rl\s*carriers)\b/i],
+  ["FreightCenter",/\bfreight\s*cent(er|re)\b/i]
+];
+
+// pull a carrier name and a PRO out of whatever was scanned or pasted
+function detectPro(text){
+  const hit = CARRIERS.find(c => c[1].test(text));
+  const nums = (text.match(/\d[\d\s-]{7,16}\d/g) || [])
+    .map(x => x.replace(/[\s-]/g, ""))
+    .filter(x => x.length >= 9 && x.length <= 12);
+  nums.sort((a,b) => b.length - a.length);
+  return { carrier: hit ? hit[0] : "", pro: nums[0] || "" };
+}
+function trackUrl(b){
+  if(!b.pro) return null;
+  const base = TRACK[b.carrier];
+  if(!base) return null;
+  return base.endsWith("=") || base.endsWith("/") ? base + encodeURIComponent(b.pro) : base;
+}
+
+const T = {
+ en:{title:"Shipping Log", internal:"Internal", client:"Client", total:"Total",
+  addBatch:"Add a batch", pasteLbl:"Paste from WeChat (optional)",
+  pastePh:"WEN 161 8box\nGAO 225 11box\nSL 144 (7箱)",
+  readPaste:"Read the paste",
+  pasteHint:"One line per code. First number is units, second is boxes. 中文数字 and 箱 both work.",
+  carrierLbl:"Carrier & PRO number", carrierPh:"Carrier…", other:"Other", proPh:"PRO #",
+  scanHint:"On iPhone: tap the PRO box, then <b>Scan Text</b> above the keyboard and sweep the whole BOL header — the carrier and PRO sort themselves out.",
+  dateLbl:"Date picked up", statusLbl:"Status", optTransit:"🚚 En Route", optDone:"✅ Completed",
+  optWaiting:"⏳ Waiting for pickup", chipWaiting:"⏳ Waiting",
+  linesLbl:"Lines", addLineBtn:"+ Another line", saveBtn:"Save batch",
+  allBatches:"All batches", backupCodes:"Backup & codes",
+  dlBackup:"Download backup", rsBackup:"Restore backup",
+  backupHint:"Everything is stored in this browser only. Download a backup before clearing your browser data, or to move the log to another phone.",
+  copyBtn:"Copy English Version",
+  openN:n=>`Open batches — ${n}`, allClear:"All clear — nothing en route.", openLbl:"Open batches",
+  noPro:"no PRO", chipDone:"✅ Done", chipTransit:"🚚 Transit",
+  codeCount:n=>`${n} codes seen`,
+  subtotal:(u,b,p)=>`Subtotal: ${u} units · ${b} boxes${p?`  (${p} pallet${p>1?"s":""})`:""}`,
+  newCode:c=>`ℹ️ "${c}" is a new code.`,
+  nearCode:(c,k)=>`⚠️ "${c}" is new and looks close to ${k} — check it's right.`,
+  dupCode:(c,n)=>`⚠️ ${c} appears ${n} times in this batch.`,
+  readOff:c=>`Read <b>${c}</b> off the BOL.`,
+  noCarrier:"No carrier name in that scan — tracking through <b>FreightCenter</b>, which takes any PRO. Pick the carrier above if you know it.",
+  needDate:"Pick a date.", needLine:"Add at least one line.", nothingRead:"Nothing readable in that paste.",
+  delAsk:(m,d,n)=>`Delete ${m} ${d} Batch ${n}?`,
+  impAsk:n=>`Replace the log with ${n} batches from this backup?`, badFile:"That file isn't a valid backup.",
+  listRow:(m,d,n)=>`${m} ${d} · Batch ${n}`, listSub:(u,b)=>`${u} units · ${b} boxes`,
+  copied:"✅ Copied!",
+  editChip:"Edit", updateBtn:"Update batch", cancelEdit:"Cancel edit",
+  editingNow:(m,d,n)=>`Editing ${m} ${d} · Batch ${n}`,
+  autoRead:n=>`Read ${n} line${n>1?"s":""} from the paste.`},
+ cn:{title:"发货记录", internal:"内部", client:"客户", total:"总计",
+  addBatch:"添加批次", pasteLbl:"从微信粘贴（可选）",
+  pastePh:"WEN 161 8箱\nGAO 225 11箱\nSL 144（7箱）",
+  readPaste:"识别内容",
+  pasteHint:"每个代码一行。第一个数字是件数，第二个是箱数。中文数字和「箱」都可以。",
+  carrierLbl:"承运商与 PRO 单号", carrierPh:"承运商…", other:"其他", proPh:"PRO 单号",
+  scanHint:"iPhone：点一下 PRO 输入框，按键盘上方的<b>扫描文本</b>，整片扫过 BOL 抬头即可，承运商和单号会自动分开。",
+  dateLbl:"取件日期", statusLbl:"状态", optTransit:"🚚 运输中", optDone:"✅ 已完成",
+  optWaiting:"⏳ 待取件", chipWaiting:"⏳ 待取件",
+  linesLbl:"发货明细", addLineBtn:"+ 再加一行", saveBtn:"保存批次",
+  allBatches:"所有批次", backupCodes:"备份与代码",
+  dlBackup:"下载备份", rsBackup:"恢复备份",
+  backupHint:"所有数据只保存在这个浏览器里。清理浏览器数据前，或要换一台手机用，请先下载备份。",
+  copyBtn:"复制中文版本",
+  openN:n=>`运输中 — ${n} 批`, allClear:"全部已送达，没有在途批次。", openLbl:"运输中",
+  noPro:"无 PRO", chipDone:"✅ 已完成", chipTransit:"🚚 运输中",
+  codeCount:n=>`已出现 ${n} 个代码`,
+  subtotal:(u,b,p)=>`小计：${u} 件 · ${b} 箱${p?`（${p} 板）`:""}`,
+  newCode:c=>`ℹ️「${c}」是新代码。`,
+  nearCode:(c,k)=>`⚠️「${c}」是新代码，和 ${k} 很像，请确认。`,
+  dupCode:(c,n)=>`⚠️ ${c} 在这一批里出现了 ${n} 次。`,
+  readOff:c=>`已从 BOL 读出 <b>${c}</b>。`,
+  noCarrier:"这次没扫到承运商名称 — 先用 <b>FreightCenter</b> 查询，任何 PRO 都能查。知道承运商的话请在上面选。",
+  needDate:"请选择日期。", needLine:"请至少填一行。", nothingRead:"这段内容没读出东西。",
+  delAsk:(m,d,n)=>`删除 ${m}${d}日 第${n}批？`,
+  impAsk:n=>`用这个备份里的 ${n} 批记录替换现有数据？`, badFile:"这个文件不是有效的备份。",
+  listRow:(m,d,n)=>`${m}${d}日 · 第${n}批`, listSub:(u,b)=>`${u} 件 · ${b} 箱`,
+  copied:"✅ 已复制！",
+  editChip:"修改", updateBtn:"保存修改", cancelEdit:"取消修改",
+  editingNow:(m,d,n)=>`正在修改 ${m}${d}日 · 第${n}批`,
+  autoRead:n=>`已读出 ${n} 行。`}
+};
+const t = k => T[LANG][k];
+
+function applyLang(){
+  document.documentElement.lang = LANG === "cn" ? "zh" : "en";
+  document.querySelectorAll("[data-t]").forEach(el=>{
+    const v = T[LANG][el.dataset.t];
+    if(v !== undefined) el.innerHTML = v;
+  });
+  document.querySelectorAll("[data-tp]").forEach(el=>{
+    const v = T[LANG][el.dataset.tp];
+    if(v !== undefined) el.placeholder = v;
+  });
+  // keep the editing state's labels when the language flips mid-edit
+  if(typeof EDITING !== "undefined" && EDITING){
+    document.getElementById("saveBatch").textContent = T[LANG].updateBtn;
+    const k = ym(EDITING.date), n = DATA.filter(x=>ym(x.date)===k).indexOf(EDITING)+1;
+    const [y,m,d] = parts(EDITING.date);
+    document.getElementById("editBanner").innerHTML =
+      `<b>${T[LANG].editChip}</b>` + T[LANG].editingNow(
+        LANG==="cn" ? m+"月" : EN_MONTH[m-1], d, LANG==="cn" ? cnNum(n) : n);
+  }
+  linesEl && linesEl.querySelectorAll("[data-k]").forEach(i=>{
+    i.placeholder = LANG === "cn"
+      ? {code:"代码", units:"件", boxes:"箱"}[i.dataset.k]
+      : {code:"CODE", units:"units", boxes:"boxes"}[i.dataset.k];
+  });
+}
+
+/* ---------- state ---------- */
+let LANG = "en";
+let TAB  = monthKeys().slice(-1)[0] || "sum";
+
+/* ---------- freight desk bridge ---------- */
+// Both apps have to be served from the same site for this to see anything —
+// browsers keep each origin's storage separate. Finds any stored record that
+// pairs a PRO with a status, whatever shape that app saved it in.
+function scanFreight(){
+  const found = {};
+  const walk = node => {
+    if(!node || typeof node !== "object") return;
+    if(Array.isArray(node)) return node.forEach(walk);
+    const keys = Object.keys(node);
+    const proK = keys.find(k=>/^(pro|pro_?no|pro_?number|tracking|tracking_?number|trackingNo)$/i.test(k));
+    const stK  = keys.find(k=>/status|state|stage/i.test(k));
+    if(proK && stK && (typeof node[stK] === "string")){
+      const digits = String(node[proK]).replace(/\D/g,"");
+      if(digits.length >= 8) found[digits] = node[stK];
+    }
+    Object.values(node).forEach(walk);
+  };
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k === KEY) continue;
+      try{ walk(JSON.parse(localStorage.getItem(k))); }catch(e){}
+    }
+  }catch(e){}
+  return found;
+}
+
+let FREIGHT_NOTE = "";
+function syncFreight(){
+  const found = scanFreight();
+  const hits = [];
+  DATA.forEach(b=>{
+    if(b.status === "done" || !b.pro) return;
+    const st = found[String(b.pro).replace(/\D/g,"")];
+    if(st && /deliver|送达|已签收|签收/i.test(st)){
+      b.status = "done";
+      const k = ym(b.date), n = DATA.filter(x=>ym(x.date)===k).indexOf(b)+1;
+      hits.push(`${LANG==="cn" ? Number(k.slice(5,7))+"月 第"+cnNum(n)+"批" : EN_MONTH[Number(k.slice(5,7))-1].slice(0,3)+" B"+n}`);
+    }
+  });
+  if(hits.length){
+    FREIGHT_NOTE = (LANG==="cn" ? "货运追踪：已自动标记送达 — " : "From Freight Desk, marked delivered — ") + hits.join(", ");
+    save();
+  }
+}
+
+/* ---------- render ---------- */
+function daysAgo(d){
+  const t = new Date(d + "T00:00:00").getTime();
+  return Math.max(0, Math.round((Date.now() - t) / 86400000));
+}
+
+function render(){
+  applyLang();
+  // open strip
+  const open = DATA.filter(b=>b.status!=="done");
+  const strip = document.getElementById("strip");
+  if(!open.length){
+    strip.className = "strip clear";
+    strip.innerHTML = `<b>${t("openLbl")}</b>${t("allClear")}`;
+  }else{
+    strip.className = "strip";
+    const keys = monthKeys();
+    const txt = open.map(b=>{
+      const k = ym(b.date);
+      const n = DATA.filter(x=>ym(x.date)===k).indexOf(b) + 1;
+      const icon = b.status === "waiting" ? "⏳" : "🚚";
+      const tag = b.pro ? ` · ${b.pro}` : ` · ${t("noPro")}`;
+      const mo = Number(k.slice(5,7));
+      const lbl = LANG === "cn" ? `${mo}月 第${cnNum(n)}批` : `${EN_MONTH[mo-1].slice(0,3)} B${n}`;
+      return `${icon} ${lbl} · ${daysAgo(b.date)}d${tag}`;
+    }).join("  ·  ");
+    strip.innerHTML = `<b>${t("openN")(open.length)}</b>${txt}`;
+  }
+
+  if(FREIGHT_NOTE) strip.innerHTML += `<br><span style="color:#6fcf8f">${FREIGHT_NOTE}</span>`;
+
+  // tabs
+  const keys = monthKeys();
+  if(!keys.includes(TAB) && TAB !== "sum") TAB = keys.slice(-1)[0] || "sum";
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = "";
+  keys.concat("sum").forEach(k=>{
+    const b = document.createElement("button");
+    b.className = "tab" + (k==="sum"?" sum":"") + (k===TAB?" active":"");
+    b.textContent = k==="sum" ? t("total")
+      : (LANG === "cn" ? Number(k.slice(5,7)) + "月" : EN_MONTH[Number(k.slice(5,7))-1].slice(0,3));
+    b.onclick = ()=>{ TAB = k; render(); };
+    tabs.appendChild(b);
+  });
+
+  // report + copy
+  const text = TAB === "sum" ? summaryReport(LANG) : monthReport(TAB, LANG);
+  document.getElementById("report").textContent = text;
+  const cp = document.getElementById("copy");
+  cp.className = "btn " + LANG;
+  cp.textContent = t("copyBtn");
+  document.querySelectorAll(".lang").forEach(t=>t.classList.toggle("active", t.dataset.l===LANG));
+
+  // batch list
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  [...DATA].reverse().forEach(b=>{
+    const k = ym(b.date);
+    const n = DATA.filter(x=>ym(x.date)===k).indexOf(b) + 1;
+    const [y,m,d] = parts(b.date);
+    const row = document.createElement("div");
+    row.className = "bitem";
+    const url = trackUrl(b);
+    const proBit = b.pro
+      ? ` · ${url ? `<a href="${url}" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:none">${b.pro} ↗</a>` : b.pro}`
+      : "";
+    const mName = LANG === "cn" ? m + "月" : EN_MONTH[m-1];
+    const bNo   = LANG === "cn" ? cnNum(n) : n;
+    row.innerHTML = `<div class="d">
+        <div class="t">${t("listRow")(mName, d, bNo)}</div>
+        <div class="s">${t("listSub")(comma(b.subtotal.units), b.subtotal.boxes)}${proBit}</div>
+      </div>`;
+    const tog = document.createElement("button");
+    const cls = { done:"d", transit:"t", waiting:"w" }[b.status] || "t";
+    tog.className = "chip " + cls;
+    tog.textContent = { done:t("chipDone"), transit:t("chipTransit"), waiting:t("chipWaiting") }[b.status]
+                      || t("chipTransit");
+    const nextStatus = { waiting:"transit", transit:"done", done:"waiting" };
+    tog.onclick = ()=>{ b.status = nextStatus[b.status] || "transit"; save(); };
+    const ed = document.createElement("button");
+    ed.className = "chip"; ed.style.cssText = "background:#1c2438;color:#8fb4f0";
+    ed.textContent = t("editChip");
+    ed.onclick = ()=> openEdit(b);
+    const del = document.createElement("button");
+    del.className = "chip x"; del.textContent = "✕";
+    del.onclick = ()=>{ if(confirm(t("delAsk")(mName, d, bNo))){
+      DATA.splice(DATA.indexOf(b),1); save(); } };
+    row.appendChild(ed); row.appendChild(tog); row.appendChild(del);
+    list.appendChild(row);
+  });
+
+  // code roster
+  const codes = {};
+  DATA.forEach(b=>b.lines.forEach(l=>{
+    if(!l.counted) return;
+    (l.parts ? l.parts.map(p=>p.code) : [l.code]).forEach(c=>{
+      if(c && !isEmptyCode(c)) codes[c] = (codes[c]||0)+1;
+    });
+  }));
+  const names = Object.keys(codes).sort();
+  document.getElementById("codes").innerHTML =
+    `<b style="color:var(--dim)">${t("codeCount")(names.length)}</b><br>` +
+    names.map(c=>`${c} <span style="color:var(--faint)">×${codes[c]}</span>`).join(" · ");
+}
+
+document.querySelectorAll(".lang").forEach(t=>t.onclick = ()=>{ LANG = t.dataset.l; render(); });
+
+document.getElementById("copy").onclick = function(){
+  const text = TAB === "sum" ? summaryReport(LANG) : monthReport(TAB, LANG);
+  const done = ()=>{
+    const old = this.textContent;
+    this.textContent = t("copied"); this.classList.add("ok");
+    setTimeout(()=>{ this.textContent = old; this.classList.remove("ok"); }, 1800);
+  };
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  } else fallback();
+  function fallback(){
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); done(); }catch(e){ alert("Select the text above and copy."); }
+    document.body.removeChild(ta);
+  }
+};
+
+/* ---------- add batch ---------- */
+function lineRow(code="", units="", boxes=""){
+  const d = document.createElement("div");
+  d.className = "lrow";
+  const ph = LANG === "cn" ? {c:"代码",u:"件",b:"箱"} : {c:"CODE",u:"units",b:"boxes"};
+  d.innerHTML = `<input data-k="code" placeholder="${ph.c}" value="${code}" autocapitalize="characters">
+    <input data-k="units" type="text" inputmode="${String(units).includes("+") ? "text" : "numeric"}" placeholder="${ph.u}" value="${units}">
+    <input data-k="boxes" type="number" inputmode="numeric" placeholder="${ph.b}" value="${boxes}">
+    <button type="button">✕</button>`;
+  d.querySelector("button").onclick = ()=>{ d.remove(); recalc(); };
+  d.querySelectorAll("input").forEach(i=>i.addEventListener("input", recalc));
+  return d;
+}
+const linesEl = document.getElementById("lines");
+let EDITING = null;
+
+function openEdit(b){
+  EDITING = b;
+  document.getElementById("bdate").value    = b.date;
+  document.getElementById("bstatus").value  = b.status;
+  document.getElementById("bcarrier").value = b.carrier || "";
+  document.getElementById("bpro").value     = b.pro || "";
+  document.getElementById("paste").value    = "";
+  document.getElementById("detected").textContent = "";
+  linesEl.innerHTML = "";
+  b.lines.forEach(l=>{
+    const codeStr = l.parts ? l.parts.map(p=>codeLabel(p.code)).join("+") : codeLabel(l.code || "");
+    const unitStr = l.parts ? l.parts.map(p=>p.units).join("+") : (l.units || "");
+    const row = lineRow(codeStr, unitStr, l.boxes || "");
+    const host = l.host || (l.en.match(/packed in (\S+) box/) || [])[1] || null;
+    if(host) row.dataset.host = host;
+    linesEl.appendChild(row);
+  });
+  const k = ym(b.date), n = DATA.filter(x=>ym(x.date)===k).indexOf(b)+1, [y,m,d] = parts(b.date);
+  const mName = LANG === "cn" ? m + "月" : EN_MONTH[m-1];
+  const bNo   = LANG === "cn" ? cnNum(n) : n;
+  const bn = document.getElementById("editBanner");
+  bn.style.display = "block";
+  bn.innerHTML = `<b>${t("editChip")}</b>${t("editingNow")(mName, d, bNo)}`;
+  document.getElementById("saveBatch").textContent = t("updateBtn");
+  document.getElementById("cancelEdit").style.display = "block";
+  document.getElementById("addBox").open = true;
+  document.getElementById("addBox").scrollIntoView({behavior:"smooth", block:"start"});
+  recalc();
+}
+document.getElementById("cancelEdit").onclick = ()=>{ EDITING = null; resetForm(); };
+function resetForm(){
+  EDITING = null;
+  document.getElementById("editBanner").style.display = "none";
+  document.getElementById("cancelEdit").style.display = "none";
+  document.getElementById("saveBatch").textContent = t("saveBtn");
+  linesEl.innerHTML = "";
+  for(let i=0;i<2;i++) linesEl.appendChild(lineRow());
+  document.getElementById("bdate").value = new Date().toISOString().slice(0,10);
+  document.getElementById("paste").value = "";
+  document.getElementById("bpro").value = "";
+  document.getElementById("bcarrier").value = "";
+  document.getElementById("detected").textContent = "";
+  recalc();
+}
+document.getElementById("addLine").onclick = ()=>{ linesEl.appendChild(lineRow()); };
+
+const proEl = document.getElementById("bpro"), carEl = document.getElementById("bcarrier"),
+      detEl = document.getElementById("detected");
+function sniffPro(){
+  const raw = proEl.value;
+  if(!raw.trim()){ detEl.textContent = ""; return; }
+  const { carrier, pro } = detectPro(raw);
+  if(pro && pro !== raw.trim()) proEl.value = pro;      // strip the rest of the BOL text
+  if(carrier){
+    carEl.value = carrier;
+    detEl.innerHTML = t("readOff")(carrier);
+  }else if(pro){
+    if(!carEl.value) carEl.value = "FreightCenter";
+    detEl.innerHTML = t("noCarrier");
+  }else{
+    detEl.textContent = "";
+  }
+}
+proEl.addEventListener("input", sniffPro);
+proEl.addEventListener("paste", ()=> setTimeout(sniffPro, 0));
+
+function readForm(){
+  return [...linesEl.querySelectorAll(".lrow")].map(r=>{
+    const codeStr = r.querySelector("[data-k=code]").value.trim();
+    const unitStr = r.querySelector("[data-k=units]").value.trim();
+    const boxes   = Number(r.querySelector("[data-k=boxes]").value) || 0;
+    const codes = codeStr.split("+").map(c=>c.trim())
+                    .map(c=> isEmptyCode(c) ? "EMPTY" : c.toUpperCase()).filter(Boolean);
+    const nums  = unitStr.split("+").map(n=>Number(n.trim()) || 0);
+    let parts = codes.map((c,i)=>({ code:c, units: nums[i] ?? 0 }));
+    if(parts.some(p=>isEmptyCode(p.code))) parts = [{code:"EMPTY", units:0}];
+    if(!parts.length && boxes) parts = [{code:"EMPTY", units:0}];
+    return { parts, boxes, host: r.dataset.host || null,
+             units: parts.reduce((s,p)=>s+p.units,0) };
+  }).filter(l=> l.parts.length || l.boxes);
+}
+
+function knownCodes(){
+  const s = new Set();
+  DATA.forEach(b=>b.lines.forEach(l=>{
+    (l.parts ? l.parts.map(p=>p.code) : [l.code]).forEach(c=>{
+      if(c && !isEmptyCode(c)) s.add(c.toUpperCase());
+    });
+  }));
+  return s;
+}
+function near(a, b){ // edit distance <= 1
+  if(a === b) return false;
+  if(Math.abs(a.length-b.length) > 1) return false;
+  if(a.length === b.length){
+    let diff = 0; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) diff++;
+    return diff === 1;
+  }
+  const [s,l] = a.length < b.length ? [a,b] : [b,a];
+  let i=0,j=0,skip=0;
+  while(i<s.length && j<l.length){ if(s[i]===l[j]) i++; else { skip++; if(skip>1) return false; } j++; }
+  return true;
+}
+
+function recalc(){
+  const ls = readForm();
+  const u = ls.reduce((s,l)=>s+l.units,0);
+  const b = ls.reduce((s,l)=>s+l.boxes,0);
+  const flat = ls.flatMap(l=>l.parts).filter(p=>!isEmptyCode(p.code));
+  document.getElementById("liveTot").textContent =
+    ls.length ? t("subtotal")(comma(u), b, (b && b%15===0) ? b/15 : 0) : "";
+  const known = knownCodes();
+  const msgs = [];
+  flat.forEach(p=>{
+    if(!p.code || known.has(p.code)) return;
+    const hit = [...known].filter(k=>near(p.code,k));
+    if(hit.length) msgs.push(t("nearCode")(p.code, hit.join(", ")));
+    else msgs.push(t("newCode")(p.code));
+  });
+  const seen = {};
+  flat.forEach(p=>{ seen[p.code] = (seen[p.code]||0)+1; });
+  Object.keys(seen).forEach(c=>{ if(seen[c]>1) msgs.push(t("dupCode")(c, seen[c])); });
+  document.getElementById("warn").innerHTML = msgs.join("<br>");
+}
+
+/* paste parser */
+const CN_NUM = {"一":1,"二":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9,"十":10,
+  "十一":11,"十二":12,"十三":13,"十四":14,"十五":15,"十六":16,"十七":17,"十八":18,"十九":19,"二十":20,
+  "二十一":21,"二十二":22,"二十三":23,"二十四":24,"二十五":25};
+function parseLine(line){
+  let s = line.trim();
+  if(!s) return null;
+  s = s.replace(/([一二两三四五六七八九十]+)\s*箱/g, (m,g)=> (CN_NUM[g] ?? g) + " box");
+  s = s.replace(/空箱|空盒/g, " EMPTY ");
+  s = s.replace(/混装|混箱/gi, " ");
+  s = s.replace(/箱/g, " box").replace(/件|个|款/g, " ");
+  s = s.replace(/[（）()，,、：:．.]/g, " ");
+  s = s.replace(/(\d)\s*\+\s*(?=\d)/g, "$1+");           // "10 + 10" -> "10+10"
+  s = s.replace(/\+/g, " ");                              // any other + just separates
+  s = s.replace(/(\d)\s*(units?|box(?:es)?|pcs)\b/gi, "$1 $2");
+  s = s.replace(/\b(units?|box(?:es)?|pcs|pallets?)\b/gi, " ");
+  let toks = s.replace(/\s+/g," ").trim().split(" ").filter(Boolean);
+
+  // "S A M" -> SAM
+  let out = [];
+  for(let i=0;i<toks.length;i++){
+    if(/^[A-Za-z]$/.test(toks[i])){
+      let j=i, buf="";
+      while(j<toks.length && /^[A-Za-z]$/.test(toks[j])){ buf += toks[j]; j++; }
+      out.push(buf); i = j-1;
+    } else out.push(toks[i]);
+  }
+  // "2 1 0" -> 210
+  toks = out; out = [];
+  for(let i=0;i<toks.length;i++){
+    if(/^\d$/.test(toks[i])){
+      let j=i, buf="";
+      while(j<toks.length && /^\d$/.test(toks[j])){ buf += toks[j]; j++; }
+      if(buf.length >= 3){ out.push(buf); i = j-1; continue; }
+    }
+    out.push(toks[i]);
+  }
+  toks = out;
+
+  // walk it: a code opens a slot, a number fills the next empty slot,
+  // and a number with no slot left to fill is the box count
+  const parts = [];
+  let boxes = null;
+  toks.forEach(tok=>{
+    if(/[A-Za-z]/.test(tok)){
+      tok.split("+").forEach(c=>{
+        c = c.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
+        if(c) parts.push({ code: c, units: null });
+      });
+    }else if(/^\d+(\+\d+)*$/.test(tok)){
+      tok.split("+").map(Number).forEach(n=>{
+        const slot = parts.find(p => p.units === null);
+        if(slot) slot.units = n;
+        else if(boxes === null) boxes = n;
+      });
+    }
+  });
+  if(!parts.length && boxes === null) return null;
+  parts.forEach(p=>{ if(p.units === null) p.units = 0; });
+  if(!parts.length) parts.push({ code:"EMPTY", units:0 });
+
+  // an empty box is an empty box, whatever else got scribbled on the line
+  if(parts.some(p=>isEmptyCode(p.code)))
+    return { parts:[{code:"EMPTY", units:0}], boxes: boxes || 1 };
+
+  // "TAO 9 (packed in TR1 box)" — a trailing code with no units and no boxes
+  // of its own is the box this rode in, not another client
+  let host = null;
+  if(parts.length > 1 && !boxes && parts[parts.length-1].units === 0)
+    host = parts.pop().code;
+
+  return { parts, boxes: boxes ?? 0, host };
+}
+
+function runParse(quiet){
+  const out = document.getElementById("paste").value.split("\n")
+                .map(parseLine).filter(Boolean);
+  if(!out.length){ if(!quiet) alert(t("nothingRead")); return; }
+  linesEl.innerHTML = "";
+  out.forEach(l=>{
+    const row = lineRow(l.parts.map(p=>codeLabel(p.code)).join("+"),
+                        l.parts.map(p=>p.units).join("+"),
+                        l.boxes || "");
+    if(l.host) row.dataset.host = l.host;
+    linesEl.appendChild(row);
+  });
+  recalc();
+  const w = document.getElementById("warn");
+  w.innerHTML = `${t("autoRead")(out.length)}` + (w.innerHTML ? "<br>" + w.innerHTML : "");
+}
+document.getElementById("parseBtn").onclick = ()=> runParse(false);
+
+// read it as soon as it lands, no button needed
+const pasteEl = document.getElementById("paste");
+let pasteTimer = null;
+function schedParse(){
+  clearTimeout(pasteTimer);
+  pasteTimer = setTimeout(()=>{ if(pasteEl.value.trim()) runParse(true); }, 350);
+}
+pasteEl.addEventListener("paste", ()=> setTimeout(()=> runParse(true), 0));
+pasteEl.addEventListener("input", schedParse);
+
+document.getElementById("saveBatch").onclick = ()=>{
+  const date = document.getElementById("bdate").value;
+  if(!date){ alert(t("needDate")); return; }
+  const ls = readForm();
+  if(!ls.length){ alert(t("needLine")); return; }
+  const prev = EDITING ? EDITING.lines : [];
+  let touched = !EDITING || ls.length !== prev.length;
+  const lines = ls.map((l,i)=>{
+    const o = prev[i];
+    const same = o && o.boxes === l.boxes && (
+      o.parts ? JSON.stringify(o.parts) === JSON.stringify(l.parts)
+              : ((o.code || "") === l.parts.map(p=>p.code).join("+") && o.units === l.units));
+    if(same) return o;          // untouched line keeps its original wording
+    touched = true;
+    return {
+      parts: l.parts, host: l.host || null,
+      code: l.parts.map(p=>p.code).join("+") || null,
+      units: l.units, boxes: l.boxes, counted: true,
+      en: lineText(l.parts, l.boxes, "en", l.host),
+      cn: lineText(l.parts, l.boxes, "cn", l.host)
+    };
+  });
+  const carrier = document.getElementById("bcarrier").value || null;
+  const pro = document.getElementById("bpro").value.trim() || null;
+  const status = document.getElementById("bstatus").value;
+
+  if(EDITING){
+    EDITING.date = date; EDITING.status = status;
+    EDITING.carrier = carrier; EDITING.pro = pro; EDITING.lines = lines;
+    if(touched) EDITING.subtotal = {
+      units: ls.reduce((s,l)=>s+l.units,0), boxes: ls.reduce((s,l)=>s+l.boxes,0),
+      enNote: EDITING.subtotal.enNote || "", cnNote: EDITING.subtotal.cnNote || "" };
+  }else{
+    DATA.push({ date, status, carrier, pro, lines,
+      subtotal:{ units: ls.reduce((s,l)=>s+l.units,0), boxes: ls.reduce((s,l)=>s+l.boxes,0), enNote:"", cnNote:"" } });
+  }
+  save();
+  TAB = ym(date); render();
+  resetForm();
+  document.getElementById("addBox").open = false;
+  window.scrollTo({top:0, behavior:"smooth"});
+};
+
+/* ---------- backup ---------- */
+document.getElementById("exp").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(DATA,null,1)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `shipping-log-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+};
+document.getElementById("impBtn").onclick = ()=> document.getElementById("imp").click();
+document.getElementById("imp").onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(!Array.isArray(d)) throw 0;
+      if(confirm(t("impAsk")(d.length))){ DATA = d; save(); }
+    }catch(err){ alert(t("badFile")); }
+  };
+  r.readAsText(f);
+};
+
+resetForm();
+syncFreight();
+render();
+// check again when the tab is brought back to the front
+document.addEventListener("visibilitychange", ()=>{
+  if(!document.hidden){ syncFreight(); render(); }
+});
+</script>
+</body>
+</html>
