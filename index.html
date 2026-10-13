@@ -159,6 +159,14 @@
       <button class="btn ghost" id="exp" data-t="dlBackup">Download backup</button>
       <button class="btn ghost" id="impBtn" data-t="rsBackup">Restore backup</button>
     </div>
+    <div class="row">
+      <button class="btn ghost" id="copyBk" data-t="copyBackup">Copy backup</button>
+      <button class="btn ghost" id="pasteBk" data-t="pasteBackup">Paste backup</button>
+    </div>
+    <div id="pasteWrap" style="display:none">
+      <textarea id="bkText" data-tp="pastePh2" placeholder="Paste the backup text here"></textarea>
+      <button class="btn ghost" id="loadBk" data-t="loadPasted" style="margin-top:8px">Load pasted backup</button>
+    </div>
     <input type="file" id="imp" accept="application/json" style="display:none">
     <div class="hint" data-t="backupHint">Everything is stored in this browser only. Download a backup before clearing your browser data, or to move the log to another phone.</div>
   </div>
@@ -382,6 +390,8 @@ const T = {
   linesLbl:"Lines", addLineBtn:"+ Another line", saveBtn:"Save batch",
   allBatches:"All batches", backupCodes:"Backup & codes",
   dlBackup:"Download backup", rsBackup:"Restore backup",
+  copyBackup:"Copy backup", pasteBackup:"Paste backup", loadPasted:"Load pasted backup",
+  pastePh2:"Paste the backup text here", copiedBk:"✅ Backup copied!", badPaste:"That text isn't a valid backup.",
   backupHint:"Everything is stored in this browser only. Download a backup before clearing your browser data, or to move the log to another phone.",
   copyBtn:"Copy English Version",
   waitLine:(u,b)=>`⏳ Waiting for pickup: ${u} units (${b} boxes)`,
@@ -414,6 +424,8 @@ const T = {
   linesLbl:"发货明细", addLineBtn:"+ 再加一行", saveBtn:"保存批次",
   allBatches:"所有批次", backupCodes:"备份与代码",
   dlBackup:"下载备份", rsBackup:"恢复备份",
+  copyBackup:"复制备份", pasteBackup:"粘贴备份", loadPasted:"载入粘贴的备份",
+  pastePh2:"把备份内容粘贴到这里", copiedBk:"✅ 备份已复制！", badPaste:"这段内容不是有效的备份。",
   backupHint:"所有数据只保存在这个浏览器里。清理浏览器数据前，或要换一台手机用，请先下载备份。",
   copyBtn:"复制中文版本",
   waitLine:(u,b)=>`⏳ 待取件：${u} 件（${b} 箱）`,
@@ -955,6 +967,48 @@ document.getElementById("exp").onclick = ()=>{
   a.click();
 };
 document.getElementById("impBtn").onclick = ()=> document.getElementById("imp").click();
+
+// clipboard route — works where a sandboxed preview blocks file downloads
+document.getElementById("copyBk").onclick = function(){
+  const text = JSON.stringify(DATA);
+  const done = ()=>{
+    const old = this.textContent;
+    this.textContent = t("copiedBk"); this.classList.add("ok");
+    setTimeout(()=>{ this.textContent = old; this.classList.remove("ok"); }, 2000);
+  };
+  const fallback = ()=>{
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); done(); }
+    catch(e){ document.getElementById("pasteWrap").style.display="block";
+              document.getElementById("bkText").value = text; }
+    document.body.removeChild(ta);
+  };
+  if(navigator.clipboard && window.isSecureContext)
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  else fallback();
+};
+
+document.getElementById("pasteBk").onclick = ()=>{
+  const w = document.getElementById("pasteWrap");
+  w.style.display = w.style.display === "block" ? "none" : "block";
+  if(w.style.display === "block") document.getElementById("bkText").focus();
+};
+
+document.getElementById("loadBk").onclick = ()=>{
+  const raw = document.getElementById("bkText").value.trim();
+  if(!raw) return;
+  try{
+    const d = JSON.parse(raw);
+    if(!Array.isArray(d)) throw 0;
+    if(confirm(t("impAsk")(d.length))){
+      DATA = d; save();
+      document.getElementById("bkText").value = "";
+      document.getElementById("pasteWrap").style.display = "none";
+    }
+  }catch(e){ alert(t("badPaste")); }
+};
 document.getElementById("imp").onchange = e=>{
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
