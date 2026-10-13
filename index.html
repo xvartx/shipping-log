@@ -250,14 +250,20 @@ function lineText(parts, boxes, lang, host){
   return lang==="en" ? `${bits[0]} (${bx(boxes)})` : `${bits[0]}（${bx(boxes)}）`;
 }
 
+// a batch only counts once it has actually left
+const shipped = b => b.status !== "waiting";
+
 const RULE = "━━━━━━━━━━━━━";
 
 function monthReport(key, lang){
   const list = DATA.filter(b => ym(b.date) === key);
   if(!list.length) return summaryReport(lang);
   const m = Number(key.slice(5,7));
-  const u = list.reduce((s,b)=>s+b.subtotal.units,0);
-  const bx = list.reduce((s,b)=>s+b.subtotal.boxes,0);
+  const out = list.filter(shipped), wait = list.filter(b=>!shipped(b));
+  const u = out.reduce((s,b)=>s+b.subtotal.units,0);
+  const bx = out.reduce((s,b)=>s+b.subtotal.boxes,0);
+  const wu = wait.reduce((s,b)=>s+b.subtotal.units,0);
+  const wb = wait.reduce((s,b)=>s+b.subtotal.boxes,0);
   const head = lang === "en"
     ? `📦 ${EN_MONTH[m-1]} Shipping Report — For You (Internal)`
     : `📦 ${CN_MONTH[m-1]}发货报告`;
@@ -265,7 +271,8 @@ function monthReport(key, lang){
     ? `🗓️ ${EN_MONTH[m-1]} Total: ${comma(u)} units (${bx} boxes)`
     : `🗓️ ${CN_MONTH[m-1]}总计：${comma(u)} 件（${bx} 箱）`;
   const body = list.map((b,i)=> renderBatch(b, i+1, lang)).join(`\n\n${RULE}\n`);
-  return `${head}\n\n${RULE}\n${body}\n\n${RULE}\n${tail}`;
+  const waitTxt = wait.length ? T[lang].waitLine(comma(wu), wb) + "\n" : "";
+  return `${head}\n\n${RULE}\n${body}\n\n${RULE}\n${waitTxt}${tail}`;
 }
 
 function monthKeys(){
@@ -275,7 +282,7 @@ function monthKeys(){
 function summaryReport(lang){
   const keys = monthKeys();
   const rows = keys.map(k=>{
-    const list = DATA.filter(b=>ym(b.date)===k);
+    const list = DATA.filter(b=>ym(b.date)===k && shipped(b));
     const m = Number(k.slice(5,7));
     const u = list.reduce((s,b)=>s+b.subtotal.units,0);
     const bx = list.reduce((s,b)=>s+b.subtotal.boxes,0);
@@ -283,8 +290,10 @@ function summaryReport(lang){
       ? `${EN_MONTH[m-1]}: ${comma(u)} units (${bx} boxes) — ${list.length} batch${list.length>1?"es":""}`
       : `${CN_MONTH[m-1]}：${comma(u)} 件（${bx} 箱）— 共 ${list.length} 批`;
   });
-  const U = DATA.reduce((s,b)=>s+b.subtotal.units,0);
-  const B = DATA.reduce((s,b)=>s+b.subtotal.boxes,0);
+  const U = DATA.filter(shipped).reduce((s,b)=>s+b.subtotal.units,0);
+  const B = DATA.filter(shipped).reduce((s,b)=>s+b.subtotal.boxes,0);
+  const WU = DATA.filter(b=>!shipped(b)).reduce((s,b)=>s+b.subtotal.units,0);
+  const WB = DATA.filter(b=>!shipped(b)).reduce((s,b)=>s+b.subtotal.boxes,0);
   if(!keys.length) return lang==="en"
     ? "No batches logged yet.\n\nOpen \u201cAdd a batch\u201d below, or restore a backup under \u201cBackup & codes\u201d."
     : "还没有发货记录。\n\n请在下方「Add a batch」添加，或在「Backup & codes」里恢复备份。";
@@ -296,7 +305,7 @@ function summaryReport(lang){
   const QL = {1:["Q1 (Jan–Mar)","第一季度（1–3月）"],2:["Q2 (Apr–Jun)","第二季度（4–6月）"],
               3:["Q3 (Jul–Sep)","第三季度（7–9月）"],4:["Q4 (Oct–Dec)","第四季度（10–12月）"]};
   const qs = {};
-  DATA.forEach(b=>{
+  DATA.filter(shipped).forEach(b=>{
     const mo = Number(ym(b.date).slice(5,7));
     const q = Math.ceil(mo/3);
     qs[q] = qs[q] || {u:0,b:0,mo:new Set()};
@@ -312,10 +321,12 @@ function summaryReport(lang){
   if(lang === "en"){
     return `📦 Shipping Summary — ${EN_MONTH[fm-1]} to ${EN_MONTH[lm-1]} ${yr}\n\n${RULE}\n`
          + rows.join("\n") + `\n\n${RULE}\n` + qrows.join("\n")
+         + (WU || WB ? `\n${T.en.waitLine(comma(WU), WB)}` : "")
          + `\n🗓️ ${EN_N[n]||n}-Month Total: ${comma(U)} units (${B} boxes)`;
   }
   return `📦 发货汇总 — ${yr}年${fm}月至${lm}月\n\n${RULE}\n`
        + rows.join("\n") + `\n\n${RULE}\n` + qrows.join("\n")
+       + (WU || WB ? `\n${T.cn.waitLine(comma(WU), WB)}` : "")
        + `\n🗓️ ${cnNum(n)}个月总计：${comma(U)} 件（${B} 箱）`;
 }
 
@@ -373,6 +384,7 @@ const T = {
   dlBackup:"Download backup", rsBackup:"Restore backup",
   backupHint:"Everything is stored in this browser only. Download a backup before clearing your browser data, or to move the log to another phone.",
   copyBtn:"Copy English Version",
+  waitLine:(u,b)=>`⏳ Waiting for pickup: ${u} units (${b} boxes)`,
   openN:n=>`Open batches — ${n}`, allClear:"All clear — nothing en route.", openLbl:"Open batches",
   noPro:"no PRO", chipDone:"✅ Done", chipTransit:"🚚 Transit",
   codeCount:n=>`${n} codes seen`,
@@ -404,6 +416,7 @@ const T = {
   dlBackup:"下载备份", rsBackup:"恢复备份",
   backupHint:"所有数据只保存在这个浏览器里。清理浏览器数据前，或要换一台手机用，请先下载备份。",
   copyBtn:"复制中文版本",
+  waitLine:(u,b)=>`⏳ 待取件：${u} 件（${b} 箱）`,
   openN:n=>`运输中 — ${n} 批`, allClear:"全部已送达，没有在途批次。", openLbl:"运输中",
   noPro:"无 PRO", chipDone:"✅ 已完成", chipTransit:"🚚 运输中",
   codeCount:n=>`已出现 ${n} 个代码`,
