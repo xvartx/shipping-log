@@ -488,17 +488,27 @@ let TAB  = monthKeys().slice(-1)[0] || "sum";
 // Both apps have to be served from the same site for this to see anything —
 // browsers keep each origin's storage separate. Finds any stored record that
 // pairs a PRO with a status, whatever shape that app saved it in.
+const normRef = s => String(s || "").replace(/[\s\-_#.,/\\()]/g, "").toUpperCase();
+
 function scanFreight(){
-  const found = {};
+  const found = {}; const refs = {};
   const walk = node => {
     if(!node || typeof node !== "object") return;
     if(Array.isArray(node)) return node.forEach(walk);
     const keys = Object.keys(node);
     const proK = keys.find(k=>/^(pro|pro_?no|pro_?number|tracking|tracking_?number|trackingNo)$/i.test(k));
+    const refK = keys.find(k=>/^(batch|batch_?no|batch_?number|ref|reference|order|order_?no|shipment_?ref|po)$/i.test(k));
     const stK  = keys.find(k=>/status|state|stage/i.test(k));
-    if(proK && stK && (typeof node[stK] === "string")){
-      const digits = String(node[proK]).replace(/\D/g,"");
-      if(digits.length >= 8) found[digits] = node[stK];
+    if(stK && typeof node[stK] === "string"){
+      if(proK){
+        const digits = String(node[proK]).replace(/\D/g,"");
+        if(digits.length >= 8) found[digits] = node[stK];
+      }
+      if(refK){
+        const r = normRef(node[refK]);
+        // a bare number is too weak to match on — it would close the wrong batch
+        if(r && !/^\d+$/.test(r)) refs[r] = node[stK];
+      }
     }
     Object.values(node).forEach(walk);
   };
@@ -509,19 +519,29 @@ function scanFreight(){
       try{ walk(JSON.parse(localStorage.getItem(k))); }catch(e){}
     }
   }catch(e){}
-  return found;
+  return { found, refs };
+}
+
+// the labels a Freight Desk entry might carry for a given batch
+function batchRefs(b, n){
+  const [y,m] = parts(b.date);
+  const ab = EN_MONTH[m-1].slice(0,3);
+  return [ `B${n}`, `${ab}B${n}`, `${ab}BATCH${n}`, `${y}${String(m).padStart(2,"0")}B${n}`,
+           `第${cnNum(n)}批`, `${m}月第${cnNum(n)}批` ].map(normRef);
 }
 
 let FREIGHT_NOTE = "";
 function syncFreight(){
-  const found = scanFreight();
+  const { found, refs } = scanFreight();
   const hits = [];
   DATA.forEach(b=>{
-    if(b.status === "done" || !b.pro) return;
-    const st = found[String(b.pro).replace(/\D/g,"")];
+    if(b.status === "done") return;
+    const k = ym(b.date), n = DATA.filter(x=>ym(x.date)===k).indexOf(b)+1;
+    let st = b.pro ? found[String(b.pro).replace(/\D/g,"")] : null;
+    // no PRO on the batch, or none matched — fall back to its batch label
+    if(!st) st = batchRefs(b, n).map(r=>refs[r]).find(Boolean);
     if(st && /deliver|送达|已签收|签收/i.test(st)){
       b.status = "done";
-      const k = ym(b.date), n = DATA.filter(x=>ym(x.date)===k).indexOf(b)+1;
       hits.push(`${LANG==="cn" ? Number(k.slice(5,7))+"月 第"+cnNum(n)+"批" : EN_MONTH[Number(k.slice(5,7))-1].slice(0,3)+" B"+n}`);
     }
   });
