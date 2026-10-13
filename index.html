@@ -208,12 +208,14 @@ function renderBatch(b, idx, lang){
   const st = b.status === "done" ? "done" : b.status === "waiting" ? "waiting" : "transit";
   let out = [];
   if(lang === "en"){
-    out.push(`Batch ${idx} — ${EN_MONTH[m-1]} ${d}, ${y}  ${mark.en[st]}`);
+    out.push(b.noDate ? `Batch ${idx}  ${mark.en[st]}`
+                      : `Batch ${idx} — ${EN_MONTH[m-1]} ${d}, ${y}  ${mark.en[st]}`);
     b.lines.forEach(l => out.push("• " + l.en));
     const n = b.subtotal.enNote ? " " + b.subtotal.enNote : "";
     out.push(`• Subtotal: ${comma(b.subtotal.units)} units (${b.subtotal.boxes} boxes${n})`);
   }else{
-    out.push(`第${cnNum(idx)}批 — ${y}年${m}月${d}日  ${mark.cn[st]}`);
+    out.push(b.noDate ? `第${cnNum(idx)}批  ${mark.cn[st]}`
+                      : `第${cnNum(idx)}批 — ${y}年${m}月${d}日  ${mark.cn[st]}`);
     b.lines.forEach(l => out.push("• " + l.cn));
     const n = b.subtotal.cnNote ? " " + b.subtotal.cnNote : "";
     out.push(`• 小计：${comma(b.subtotal.units)} 件（${b.subtotal.boxes} 箱${n}）`);
@@ -364,7 +366,7 @@ const T = {
   pasteHint:"One line per code. First number is units, second is boxes. 中文数字 and 箱 both work.",
   carrierLbl:"Carrier & PRO number", carrierPh:"Carrier…", other:"Other", proPh:"PRO #",
   scanHint:"On iPhone: tap the PRO box, then <b>Scan Text</b> above the keyboard and sweep the whole BOL header — the carrier and PRO sort themselves out.",
-  dateLbl:"Date picked up", statusLbl:"Status", optTransit:"🚚 En Route", optDone:"✅ Completed",
+  dateLbl:"Date picked up", dateLblWaiting:"Pickup date (leave blank if unknown)", statusLbl:"Status", optTransit:"🚚 En Route", optDone:"✅ Completed",
   optWaiting:"⏳ Waiting for pickup", chipWaiting:"⏳ Waiting",
   linesLbl:"Lines", addLineBtn:"+ Another line", saveBtn:"Save batch",
   allBatches:"All batches", backupCodes:"Backup & codes",
@@ -395,7 +397,7 @@ const T = {
   pasteHint:"每个代码一行。第一个数字是件数，第二个是箱数。中文数字和「箱」都可以。",
   carrierLbl:"承运商与 PRO 单号", carrierPh:"承运商…", other:"其他", proPh:"PRO 单号",
   scanHint:"iPhone：点一下 PRO 输入框，按键盘上方的<b>扫描文本</b>，整片扫过 BOL 抬头即可，承运商和单号会自动分开。",
-  dateLbl:"取件日期", statusLbl:"状态", optTransit:"🚚 运输中", optDone:"✅ 已完成",
+  dateLbl:"取件日期", dateLblWaiting:"取件日期（还没定可留空）", statusLbl:"状态", optTransit:"🚚 运输中", optDone:"✅ 已完成",
   optWaiting:"⏳ 待取件", chipWaiting:"⏳ 待取件",
   linesLbl:"发货明细", addLineBtn:"+ 再加一行", saveBtn:"保存批次",
   allBatches:"所有批次", backupCodes:"备份与代码",
@@ -440,6 +442,11 @@ function applyLang(){
     document.getElementById("editBanner").innerHTML =
       `<b>${T[LANG].editChip}</b>` + T[LANG].editingNow(
         LANG==="cn" ? m+"月" : EN_MONTH[m-1], d, LANG==="cn" ? cnNum(n) : n);
+  }
+  const dl = document.querySelector('[data-t="dateLbl"]');
+  if(dl){
+    const waiting = (document.getElementById("bstatus")||{}).value === "waiting";
+    dl.textContent = waiting ? T[LANG].dateLblWaiting : T[LANG].dateLbl;
   }
   linesEl && linesEl.querySelectorAll("[data-k]").forEach(i=>{
     i.placeholder = LANG === "cn"
@@ -567,8 +574,11 @@ function render(){
       : "";
     const mName = LANG === "cn" ? m + "月" : EN_MONTH[m-1];
     const bNo   = LANG === "cn" ? cnNum(n) : n;
+    const rowTitle = b.noDate
+      ? (LANG === "cn" ? `第${bNo}批 · 待定日期` : `Batch ${bNo} · no date yet`)
+      : t("listRow")(mName, d, bNo);
     row.innerHTML = `<div class="d">
-        <div class="t">${t("listRow")(mName, d, bNo)}</div>
+        <div class="t">${rowTitle}</div>
         <div class="s">${t("listSub")(comma(b.subtotal.units), b.subtotal.boxes)}${proBit}</div>
       </div>`;
     const tog = document.createElement("button");
@@ -643,7 +653,7 @@ let EDITING = null;
 
 function openEdit(b){
   EDITING = b;
-  document.getElementById("bdate").value    = b.date;
+  document.getElementById("bdate").value    = b.noDate ? "" : b.date;
   document.getElementById("bstatus").value  = b.status;
   document.getElementById("bcarrier").value = b.carrier || "";
   document.getElementById("bpro").value     = b.pro || "";
@@ -671,6 +681,14 @@ function openEdit(b){
   recalc();
 }
 document.getElementById("cancelEdit").onclick = ()=>{ EDITING = null; resetForm(); };
+document.getElementById("bstatus").addEventListener("change", ()=>{
+  const waiting = document.getElementById("bstatus").value === "waiting";
+  const dl = document.querySelector('[data-t="dateLbl"]');
+  if(dl) dl.textContent = waiting ? T[LANG].dateLblWaiting : T[LANG].dateLbl;
+  // a batch that hasn't been collected yet doesn't need a pickup date
+  if(!waiting && !document.getElementById("bdate").value)
+    document.getElementById("bdate").value = new Date().toISOString().slice(0,10);
+});
 function resetForm(){
   EDITING = null;
   document.getElementById("editBanner").style.display = "none";
@@ -869,7 +887,11 @@ pasteEl.addEventListener("paste", ()=> setTimeout(()=> runParse(true), 0));
 pasteEl.addEventListener("input", schedParse);
 
 document.getElementById("saveBatch").onclick = ()=>{
-  const date = document.getElementById("bdate").value;
+  let date = document.getElementById("bdate").value;
+  const statusNow = document.getElementById("bstatus").value;
+  // waiting batches can sit undated until a truck is booked
+  const noDate = !date && statusNow === "waiting";
+  if(noDate) date = new Date().toISOString().slice(0,10);
   if(!date){ alert(t("needDate")); return; }
   const ls = readForm();
   if(!ls.length){ alert(t("needLine")); return; }
@@ -895,13 +917,13 @@ document.getElementById("saveBatch").onclick = ()=>{
   const status = document.getElementById("bstatus").value;
 
   if(EDITING){
-    EDITING.date = date; EDITING.status = status;
+    EDITING.date = date; EDITING.status = status; EDITING.noDate = noDate;
     EDITING.carrier = carrier; EDITING.pro = pro; EDITING.lines = lines;
     if(touched) EDITING.subtotal = {
       units: ls.reduce((s,l)=>s+l.units,0), boxes: ls.reduce((s,l)=>s+l.boxes,0),
       enNote: EDITING.subtotal.enNote || "", cnNote: EDITING.subtotal.cnNote || "" };
   }else{
-    DATA.push({ date, status, carrier, pro, lines,
+    DATA.push({ date, status, carrier, pro, noDate, lines,
       subtotal:{ units: ls.reduce((s,l)=>s+l.units,0), boxes: ls.reduce((s,l)=>s+l.boxes,0), enNote:"", cnNote:"" } });
   }
   save();
